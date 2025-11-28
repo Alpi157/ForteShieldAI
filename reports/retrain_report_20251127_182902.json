@@ -1,0 +1,128 @@
+{
+  "generated_at": "2025-11-27T18:29:02",
+  "training_stats": {
+    "n_total": 14723,
+    "n_pos": 175,
+    "n_neg": 14548,
+    "pos_frac": 0.011886164504516742,
+    "n_new_since_fast_champion": 12763
+  },
+  "fast_gate": {
+    "champion": {
+      "version": "v11",
+      "trained_until": "2025-02-01T00:00:00",
+      "metrics": {
+        "dataset": "features_offline_v11_oof",
+        "roc_auc": 0.891106,
+        "pr_auc": 0.43232,
+        "best_threshold": 0.767482,
+        "best_precision": 0.681818,
+        "best_recall": 0.363636,
+        "best_f1": 0.474308
+      }
+    },
+    "challenger": {
+      "version": "challenger_20251127_182902",
+      "model_path": "models/catboost_fast_gate_challenger_20251127_182902.cbm",
+      "metrics": {
+        "dataset": "feature_store_join_cases",
+        "n_samples": 14723,
+        "n_pos": 175,
+        "n_neg": 14548,
+        "roc_auc": 0.9018771357869516,
+        "pr_auc": 0.48436643297784815,
+        "baseline_pr_auc": 0.011886164504516742,
+        "best_threshold": 0.742,
+        "best_precision": 0.6637931034482759,
+        "best_recall": 0.44,
+        "best_f1": 0.5292096219931272
+      }
+    },
+    "is_challenger_better_pr_auc": true
+  },
+  "meta_brain": {
+    "champion": {
+      "version": "vprod_1",
+      "trained_until": "2025-02-01T00:00:00",
+      "metrics": {
+        "dataset": "features_offline_v11_oof",
+        "roc_auc": 0.914604,
+        "pr_auc": 0.46482,
+        "best_threshold": 0.987624,
+        "best_precision": 0.697674,
+        "best_recall": 0.363636,
+        "best_f1": 0.478088
+      }
+    },
+    "challenger": {
+      "version": "challenger_20251127_182902",
+      "model_path": "models/risk_meta_challenger_20251127_182902.pkl",
+      "metrics": {
+        "dataset": "feature_store_join_cases",
+        "n_samples": 14723,
+        "n_pos": 175,
+        "n_neg": 14548,
+        "roc_auc": 0.9182269531403433,
+        "pr_auc": 0.4677443704080826,
+        "baseline_pr_auc": 0.011886164504516742,
+        "best_threshold": 0.9765886287625418,
+        "best_precision": 0.6146788990825688,
+        "best_recall": 0.38285714285714284,
+        "best_f1": 0.47183098591549294,
+        "top_features": [
+          {
+            "feature": "cst_fraud_share",
+            "importance": 5.28877143312278,
+            "coef": 5.28877143312278
+          },
+          {
+            "feature": "user_tx_60m",
+            "importance": 3.3334168168290375,
+            "coef": -3.3334168168290375
+          },
+          {
+            "feature": "log_amount",
+            "importance": 1.5714076004034252,
+            "coef": 1.5714076004034252
+          },
+          {
+            "feature": "risk_ae_oof_v11",
+            "importance": 1.3059046136342773,
+            "coef": -1.3059046136342773
+          },
+          {
+            "feature": "user_tx_1m",
+            "importance": 0.8932899785475711,
+            "coef": -0.8932899785475711
+          },
+          {
+            "feature": "sess_logins_30d",
+            "importance": 0.8538037530584537,
+            "coef": -0.8538037530584537
+          },
+          {
+            "feature": "degree_dir",
+            "importance": 0.7825227756384434,
+            "coef": -0.7825227756384434
+          },
+          {
+            "feature": "user_tx_10m",
+            "importance": 0.7013654811529278,
+            "coef": 0.7013654811529278
+          },
+          {
+            "feature": "seq_hist_len_v11",
+            "importance": 0.6299499020715977,
+            "coef": 0.6299499020715977
+          },
+          {
+            "feature": "seq_log_recon_error_v11",
+            "importance": 0.5834235324320143,
+            "coef": 0.5834235324320143
+          }
+        ]
+      }
+    },
+    "is_challenger_better_pr_auc": true
+  }
+}

@@ -1,0 +1,138 @@
+{
+  "generated_at": "2025-11-28T04:36:53",
+  "training_stats": {
+    "n_total": 22850,
+    "n_pos": 247,
+    "n_neg": 22603,
+    "pos_frac": 0.010809628008752735,
+    "n_new_since_fast_champion": 21057,
+    "n_from_user_labels": 1,
+    "n_from_target": 22849
+  },
+  "fast_gate": {
+    "champion": {
+      "version": "v11",
+      "trained_until": "2025-02-01T00:00:00",
+      "metrics": {
+        "dataset": "features_offline_v11_oof",
+        "roc_auc": 0.891106,
+        "pr_auc": 0.43232,
+        "best_threshold": 0.767482,
+        "best_precision": 0.681818,
+        "best_recall": 0.363636,
+        "best_f1": 0.474308,
+        "n_samples": 22850,
+        "n_pos": 247,
+        "n_neg": 22603,
+        "baseline_pr_auc": 0.010809628008752735
+      }
+    },
+    "challenger": {
+      "version": "challenger_20251128_043653",
+      "model_path": "models/catboost_fast_gate_challenger_20251128_043653.cbm",
+      "metrics": {
+        "dataset": "feature_store_join_cases",
+        "n_samples": 22850,
+        "n_pos": 247,
+        "n_neg": 22603,
+        "roc_auc": 0.9469510782936807,
+        "pr_auc": 0.6978480518387976,
+        "baseline_pr_auc": 0.010809628008752735,
+        "best_threshold": 0.8160000000000001,
+        "best_precision": 0.8674698795180723,
+        "best_recall": 0.582995951417004,
+        "best_f1": 0.6973365617433414
+      }
+    },
+    "is_challenger_better_pr_auc": true
+  },
+  "meta_brain": {
+    "champion": {
+      "version": "vprod_1",
+      "trained_until": "2025-02-01T00:00:00",
+      "metrics": {
+        "dataset": "features_offline_v11_oof",
+        "roc_auc": 0.914604,
+        "pr_auc": 0.46482,
+        "best_threshold": 0.987624,
+        "best_precision": 0.697674,
+        "best_recall": 0.363636,
+        "best_f1": 0.478088,
+        "n_samples": 22850,
+        "n_pos": 247,
+        "n_neg": 22603,
+        "baseline_pr_auc": 0.010809628008752735
+      }
+    },
+    "challenger": {
+      "version": "challenger_20251128_043653",
+      "model_path": "models/risk_meta_challenger_20251128_043653.pkl",
+      "metrics": {
+        "dataset": "feature_store_join_cases",
+        "n_samples": 22850,
+        "n_pos": 247,
+        "n_neg": 22603,
+        "roc_auc": 0.9323129153612764,
+        "pr_auc": 0.4669925100799934,
+        "baseline_pr_auc": 0.010809628008752735,
+        "best_threshold": 0.9899665551839465,
+        "best_precision": 0.7054263565891473,
+        "best_recall": 0.3684210526315789,
+        "best_f1": 0.48404255319148937,
+        "top_features": [
+          {
+            "feature": "cst_fraud_share",
+            "importance": 6.247844158166858,
+            "coef": 6.247844158166858
+          },
+          {
+            "feature": "user_tx_60m",
+            "importance": 3.3522584022149267,
+            "coef": -3.3522584022149267
+          },
+          {
+            "feature": "log_amount",
+            "importance": 1.6882189976656894,
+            "coef": 1.6882189976656894
+          },
+          {
+            "feature": "risk_ae_oof_v11",
+            "importance": 1.219400688008668,
+            "coef": -1.219400688008668
+          },
+          {
+            "feature": "user_tx_1m",
+            "importance": 1.20349108073095,
+            "coef": -1.20349108073095
+          },
+          {
+            "feature": "degree_dir",
+            "importance": 0.9086437004124736,
+            "coef": -0.9086437004124736
+          },
+          {
+            "feature": "sess_logins_30d",
+            "importance": 0.8349329914060069,
+            "coef": -0.8349329914060069
+          },
+          {
+            "feature": "seq_log_recon_error_v11",
+            "importance": 0.7253339665923566,
+            "coef": 0.7253339665923566
+          },
+          {
+            "feature": "seq_hist_len_v11",
+            "importance": 0.7151869766085849,
+            "coef": 0.7151869766085849
+          },
+          {
+            "feature": "user_tx_10m",
+            "importance": 0.6653881806629104,
+            "coef": 0.6653881806629104
+          }
+        ]
+      }
+    },
+    "is_challenger_better_pr_auc": true
+  }
+}

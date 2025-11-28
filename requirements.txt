@@ -1,0 +1,13 @@
+fastapi
+uvicorn
+pydantic
+pandas
+sqlalchemy
+alembic
+streamlit
+requests
+python-multipart
+catboost
+scikit-learn
+torch   # если будем крутить автоэнкодер/seq-модель у себя
+networkx
