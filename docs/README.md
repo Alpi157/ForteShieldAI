@@ -1,104 +1,101 @@
-# ForteShield AI — многоуровневая антифрод-платформа для ForteBank
+# ForteShield AI: Multi-Layer Anti-Fraud Platform for ForteBank
 
-ForteShield AI — это сквозное end-to-end решение **от сырых данных до рабочего места аналитика**:  
-от оффлайн-обучения ансамбля моделей до онлайн-скоринга транзакций в real-time, дашборда для антифрод-команды и контура model governance с retrain, champion/challenger и LLM-ассистентом.
-
----
-
-## Содержание
-
-- [Бизнес-контекст и сценарий использования](#бизнес-контекст-и-сценарий-использования)
-- [Архитектура решения](#архитектура-решения)  
-  - [Структура репозитория](#структура-репозитория)
-- [Онлайн-скоринг и backend (FastAPI)](#онлайн-скоринг-и-backend-fastapi)  
-  - [Offline Feature Store](#1-offline-feature-store)  
-  - [OnlineFeatureStore](#2-onlinefeaturestore)  
-  - [Мозги скоринга (Brains)](#3-мозги-скоринга-brains)  
-  - [PolicyEngine](#4-policyengine)  
-  - [CaseStore](#5-casestore)  
-  - [ModelRegistryBackend и model governance](#6-modelregistrybackend-и-model-governance)  
-  - [REST API](#7-rest-api)  
-  - [Shadow-режим](#8-shadow-режим)
-- [Эксплейны и LLM-ассистент](#эксплейны-и-llm-ассистент)
-- [Консоль аналитика (Streamlit UI)](#консоль-аналитика-streamlit-ui)
-- [Сценарии тестирования и симуляции](#сценарии-тестирования-и-симуляции)
-- [Retrain-pipeline и champion/challenger](#retrain-pipeline-и-championchallenger)
-- [Ключевые достоинства ForteShield AI](#ключевые-достоинства-forteshield-ai)
-- [Как запустить локально (пример)](#как-запустить-локально-пример)
-- [Итог](#итог)
+**ForteShield AI** is an end-to-end solution that covers the full path from raw data to the analyst’s workstation:
+from offline training of model ensembles to real-time transaction scoring, dashboards for the anti-fraud team, and a model governance loop with retrain, champion or challenger setup, and an LLM assistant.
 
 ---
 
-## Бизнес-контекст и сценарий использования
+## Contents
 
-**Исходный кейс** — мошеннические транзакции в ForteBank:
-
-- финансовые операции клиентов (классический транзакционный датасет);
-- дополнительный датасет с поведенческими/сессионными данными (логины, действия в онлайне, поведение в приложении).
-
-ForteShield AI отвечает на несколько практических задач:
-
-1. **Быстрое решение по каждой операции**  
-   Для каждой входящей транзакции нужно за миллисекунды оценить риск и принять решение:
-   - пропустить;
-   - поднять алерт;
-   - выделить особо крупный риск («whale»).
-
-2. **Глубокая аналитика по кейсам**  
-   Аналитик должен:
-   - видеть приоритетную очередь кейсов;
-   - понимать, *почему* модель приняла решение;
-   - иметь удобный интерфейс для разметки (fraud / legit) и последующего retrain.
-
-3. **Управление моделями**  
-   Команде риска нужна не одна «зашитая» модель, а:
-   - новые версии моделей на свежей разметке;
-   - понятный **champion/challenger**;
-   - **shadow-режим** и безопасный откат.
-
-4. **Поддержка комплаенса и SAR**  
-   Для сложных кейсов нужны:
-   - текстовые объяснения на человеческом языке;
-   - черновики SAR-отчётов, готовые к адаптации под регулятора.
-
-**ForteShield AI** покрывает весь этот цикл в рамках **одной репозитории**.
+- [Business context and use case](#business-context-and-use-case)
+- [Solution architecture](#solution-architecture)
+- [Repository structure](#repository-structure)
+- [Online scoring and backend (FastAPI)](#online-scoring-and-backend-fastapi)
+- [Offline Feature Store](#1-offline-feature-store)
+- [Online Feature Store](#2-online-feature-store)
+- [Scoring brains (Brains)](#3-scoring-brains)
+- [PolicyEngine](#4-policy-engine)
+- [CaseStore](#5-case-store)
+- [ModelRegistryBackend and model governance](#6-model-registry-backend)
+- [REST API](#7-rest-api)
+- [Shadow mode](#8-shadow-mode)
+- [Explanations and LLM assistant](#explanations-and-llm-assistant)
+- [Analyst console (Streamlit UI)](#analyst-console-streamlit-ui)
+- [Testing and simulation scenarios](#testing-and-simulation-scenarios)
+- [Retrain pipeline and champion or challenger](#retrain-pipeline--championchallenger)
+- [Key strengths of ForteShield AI](#key-strengths-of-forteshield-ai)
+- [How to run locally (example)](#how-to-run-locally-example)
+- [Summary](#summary)
 
 ---
 
-## Архитектура решения
+## Business Context and Use Case
 
-На верхнем уровне проект делится на несколько слоёв:
+The initial use case is fraudulent transactions in ForteBank:
+- Financial operations of customers (a classic transactional dataset)
+- An additional dataset with behavioral or session-level data (logins, online activity, in-app behavior)
 
-- `notebooks/` — оффлайн-pipeline построения фич и обучения моделей (v11 / vprod);
-- `backend/` — FastAPI-сервис скоринга и model governance;
-- `ui/` — Streamlit-консоль аналитика (дашборд, LLM-ассистент, model governance);
-- `models/` — артефакты моделей (CatBoost и sklearn-пайплайны);
-- `config/` — схемы фич, пороги, `model_registry.json`, словарь признаков;
-- `data/processed/` — оффлайн-фичестор и SHAP-сводки;
-- `scripts/` — утилиты для симуляции потока и red-team сценариев;
-- `retrain_models.py` — скрипт перетренировки challenger-моделей (вызывается из backend и UI).
+**ForteShield AI** addresses several practical needs:
 
-В продакшн-аналогии:
+### Fast Decision for Every Operation
+For every incoming transaction, the system estimates risk in milliseconds and decides whether to:
+- Let it pass
+- Raise an alert
+- Flag it as a high-value risk case ("whale")
 
-- `notebooks/` и `retrain_models.py` — зона ответственности DS-команды;
-- `backend/` + `ui/` — зона ML/инженеров и антифрод-аналитиков.
+### Deep Analytics on Cases
+The analyst should be able to:
+- See a prioritized queue of cases
+- Understand why the model made a specific decision
+- Use a convenient interface for labeling (fraud or legit) and retraining
 
-### Структура репозитория
+### Model Management
+The risk team expects:
+- New model versions trained on fresh labeled data
+- A clear champion/challenger setup
+- Shadow mode and safe rollback
 
-````text
+### Compliance Support and SAR
+For complex cases:
+- Text explanations in human-readable language
+- SAR report drafts ready for regulatory adaptation
+
+ForteShield AI covers this entire cycle within a single repository.
+
+---
+
+## Solution Architecture
+
+At the top level, the project is split into several layers:
+
+- `notebooks/` – Offline pipeline for feature creation and model training (v11 or vprod)
+- `backend/` – FastAPI service for scoring and model governance
+- `ui/` – Streamlit-based analyst console (dashboard, LLM assistant, model governance)
+- `models/` – Model artifacts (CatBoost and sklearn pipelines)
+- `config/` – Feature schemas, thresholds, model registry, feature dictionary
+- `data/processed/` – Offline feature store and SHAP summaries
+- `scripts/` – Utilities for stream simulation and red team scenarios
+- `retrain_models.py` – Script for retraining challenger models
+
+
+---
+
+## Repository Structure
+
+```
 .
-├── notebooks/           # Оффлайн-EDA, фичи, обучение моделей, SHAP
-├── backend/             # FastAPI-сервис скоринга и model governance
-│   ├── main.py          # Точка входа, REST API
+├── notebooks/           # Offline EDA, features, model training, SHAP
+├── backend/             # FastAPI scoring service and model governance
+│   ├── main.py          # Entry point, REST API
 │   ├── feature_store.py # OnlineFeatureStore
-│   ├── policy_engine.py # PolicyEngine со стратегиями риска
-│   ├── case_store.py    # SQLite-хранилище кейсов
+│   ├── policy_engine.py # PolicyEngine with risk strategies
+│   ├── case_store.py    # SQLite based case storage
 │   ├── model_loader.py  # ModelRegistryBackend
-│   ├── llm_agent.py     # LLM-эксплейны и SAR-черновики
+│   ├── llm_agent.py     # LLM explanations and SAR drafts
 │   └── ...
 ├── ui/
-│   └── app.py           # Streamlit-консоль аналитика
-├── models/              # CatBoost, sklearn-пайплайны, Meta Brain
+│   └── app.py           # Streamlit analyst console
+├── models/              # CatBoost, sklearn pipelines, Meta Brain
 ├── config/
 │   ├── features_schema.json
 │   ├── meta_thresholds_vprod.json
@@ -112,460 +109,574 @@ ForteShield AI отвечает на несколько практических
 ├── scripts/
 │   ├── stream_simulator.py
 │   └── red_team.py
-└── retrain_models.py    # Перетренировка challenger-моделей
-````
+└── retrain_models.py    # Retraining of challenger models
+```
+
+
+# Online Scoring and Backend (FastAPI)
+
+The core service lives in `backend/main.py` and is run as a **FastAPI** application.
 
 ---
 
-## Онлайн-скоринг и backend (FastAPI)
+## 1. Offline Feature Store
 
-Корневой сервис расположен в `backend/main.py` и поднимается как FastAPI-приложение.
+The Offline Feature Store is the backbone of the scoring pipeline. Implemented as a single Parquet file:
 
-### 1. Offline Feature Store
+```
+data/processed/features_offline_v11.parquet
+```
 
-* `features_offline_v11.parquet` загружается в память один раз при старте.
-* Индексация по `docno` обеспечивает:
-  * стабильность фичей;
-  * повторяемость для демо и оффлайн-анализа.
+This file is loaded into memory at backend startup (`backend/main.py`). No need to access raw transactional tables at runtime.
 
-### 2. OnlineFeatureStore
+### Key Properties
 
-Файл `backend/feature_store.py` реализует лёгкий **in-memory** стор:
+#### Indexed by `docno`
 
-* для каждого клиента и получателя хранит последние события;
-* считает velocity-фичи:
-  * `user_tx_1m / 10m / 60m`
-  * `user_sum_60m`
-  * `user_new_dirs_60m`
-  * `dir_tx_60m`
-  * `dir_unique_senders_60m`
+- One row per transaction
+- Enables O(1) lookups for scoring
+- If `docno` is missing → fallback baseline risk is applied, but case is still logged
 
-Фичи автоматически обновляются при каждом запросе к `/score_transaction`.
+#### Stable Feature Definitions
 
-### 3. Мозги скоринга (Brains)
+Models are trained against the same schema (`v11`):
 
-В `main.py` явно разделены функции скоринга:
+- Fast Gate: `features_schema_v11.json`
+- Graph Brain: `graph_brain_features_v11.json`
+- Session Brain: `session_features_v11.json`
+- AE/Sequence heads: `autoencoder_meta_features_v11.json`, `sequence_meta_features_v11.json`
+- Meta Brain: `meta_features_vprod.json` + offline OOF scores
 
-* **Fast Gate** — `score_fast`  
-  CatBoostClassifier с числовыми и категориальными признаками.  
-  Категориальные индексы берутся из конфигурации, пропуски аккуратно обрабатываются.
+#### Benefits
 
-* **Graph Brain** — `score_graph`  
-  CatBoost по графовым и репутационным фичам.
+- Deterministic scoring
+- Easy replay & debugging
+- Isolation from upstream changes
 
-* **Session Brain** — `score_sess`  
-  Модель по сессионным и поведенческим признакам, умеет обрабатывать смешанные типы.
-
-* **AE Brain** — `score_ae_meta`  
-  sklearn-пайплайн (imputer, scaler, LogisticRegression) по аномалиям.
-
-* **Sequence Brain** — `score_seq_meta`  
-  Пайплайн по последовательностям транзакций, дополнительно возвращающий длину истории.
-
-* **Meta Brain** — `score_meta_vprod`  
-  Финальная модель `risk_meta_vprod.pkl`, которая использует:
-  * оффлайн OOF-скоры мозгов:
-    * `risk_fast_oof_v11`
-    * `risk_ae_oof_v11`
-    * `graph_brain_oof_v11`
-    * `risk_seq_oof_v11`
-    * `risk_sess_oof_v11`
-  * live-скор Fast Gate;
-  * набор мета-фич из `meta_features_vprod.json`.
-
-Результат Meta Brain — финальная вероятность фрода, которая далее идёт в **PolicyEngine**.
-
-### 4. PolicyEngine
-
-Файл `backend/policy_engine.py`:
-
-* читает конфигурацию порогов из `config/meta_thresholds_vprod.json`;
-* поддерживает несколько стратегий:
-  * `Aggressive`
-  * `Balanced`
-  * `Friendly`
-  * и др.
-* возвращает:
-  * итоговое решение (`allow` / `alert`);
-  * тип риска: `Normal / Suspicious / Whale` с учётом:
-    * размера суммы;
-    * специального множителя для крупных операций.
-
-### 5. CaseStore
-
-Файл `backend/case_store.py` — лёгкое, но продуманное хранилище кейсов на **SQLite**.
-
-Таблица `cases` хранит:
-
-* базовые поля:
-  * `case_id`, `docno`, `cst_dim_id`, `direction`, `amount`, `transdatetime`;
-* скоры мозгов:
-  * `risk_fast`, `risk_ae`, `risk_graph`, `risk_seq`, `risk_sess`, `risk_meta`;
-  * `risk_score_final`, `anomaly_score_emb`;
-* флаги:
-  * `ae_high`, `graph_high`, `seq_high`, `sess_high`, `has_seq_history`;
-* стратегия и решение:
-  * `strategy_used`, `decision`, `risk_type`, `status`;
-* разметка:
-  * `user_label`, `use_for_retrain`;
-* поля shadow-режима:
-  * `risk_fast_shadow`, `risk_meta_shadow`.
-
-Миграции реализованы через `_ensure_column`: при обновлении репо таблица догоняется через `ALTER TABLE`.
-
-### 6. ModelRegistryBackend и model governance
-
-Файл `backend/model_loader.py` — обвязка над `config/model_registry.json`.
-
-Для каждого brain (например, `fast_gate`, `meta_brain`) описано:
-
-* `champion` — текущая боевая модель;
-* `challenger` — новая версия на свежих данных;
-* `previous` — предыдущий champion для откатов;
-* `shadow_enabled` — флаг shadow-режима.
-
-Основные операции:
-
-* `load_champion` — загрузить champion и (опционально) challenger;
-* `promote(brain)` — `challenger → champion`, старый champion уезжает в `previous`;
-* `rollback(brain)` — обмен `champion ↔ previous`.
-
-Пути к моделям могут быть относительными (от корня проекта) или абсолютными.
-
-
-
-### 7. REST API
-
-Ключевые эндпоинты FastAPI:
-
-* `GET /health`  
-  Короткий healthcheck + версии champion-моделей и статус shadow-режима.
-
-* `POST /score_transaction`  
-  Главный endpoint скоринга.  
-  Принимает `TransactionInput`:
-  * `docno`, `cst_dim_id`, `direction`, `amount`, `transdatetime`.
-
-  Пайплайн:
-  1. Поднимает оффлайн-фичи по `docno`;
-  2. Добавляет online-velocity;
-  3. Считает все мозги;
-  4. Собирает финальный риск через Meta Brain;
-  5. Прогоняет через PolicyEngine;
-  6. Сохраняет кейс в CaseStore.
-
-  Возвращает `ScoreResponse`:
-  * `case_id`, `risk_score_final`, `decision`, `risk_type`, `strategy_used`.
-
-* `GET /cases`, `GET /case/{id}`, `POST /case/{id}/label`  
-  Очередь кейсов, карточка кейса, обновление разметки `user_label` / `use_for_retrain` / `status`.
-
-* `GET /strategy`, `GET /strategies`, `POST /strategy/{name}`  
-  Управление стратегиями PolicyEngine из UI.
-
-* **LLM-эндпоинты**:
-  * `POST /llm/explain_case` — текстовое объяснение решения;
-  * `POST /llm/generate_sar` — черновик SAR-отчёта.
-
-* **Model governance API**:
-  * `GET /model_registry` — текущее содержимое `model_registry.json`;
-  * `GET /retrain_last_report` — последний `retrain_report_*.json` из `reports/`;
-  * `POST /retrain` — запуск `retrain_models.py`, возврат stdout/stderr и отчёта;
-  * `POST /reload_models` — перечитать champion/challenger из `model_registry.json`;
-  * `POST /promote_model?brain=fast_gate|meta_brain`;
-  * `POST /rollback_model?brain=...`.
+> The Offline Feature Store acts as an in-memory, read-only source of truth for all static and semi-static model features.
 
 ---
 
-### 8. Shadow-режим
+## 2. Online Feature Store
 
-При включённом `shadow_enabled` для Fast Gate и Meta Brain:
+Implemented in `backend/feature_store.py` as `OnlineFeatureStore`.
 
-* backend параллельно считает **challenger-скор**;
-* пишет его в кейс (`risk_fast_shadow`, `risk_meta_shadow`);
-* бизнес-решение при этом остаётся на champion.
+### Purpose
 
-UI визуализирует champion vs shadow для каждого кейса и помогает принять решение о `promote`.
+Adds **real-time velocity features** based on recent activity (sliding window):
+
+- Sudden bursts of transactions
+- Many different recipients in short time
+- Many senders to same destination
+
+### Internal Structure
+
+- **user_events**: `cst_dim_id → deque(timestamp, amount, direction)`
+- **dir_events**: `direction → deque(timestamp, cst_dim_id, amount)`
+
+### Time Windows
+
+```python
+w1 = 60     # last 1 minute
+w10 = 600   # last 10 minutes
+w60 = 3600  # last 60 minutes
+```
+
+### Feature Computation
+
+Called via:
+```python
+update_and_get_features(cst_id, direction, amount, ts)
+```
+
+Returns:
+
+```python
+{
+  "user_tx_1m": ...,
+  "user_tx_10m": ...,
+  "user_tx_60m": ...,
+  "user_sum_60m": ...,
+  "user_new_dirs_60m": ...,
+  "dir_tx_60m": ...,
+  "dir_unique_senders_60m": ...
+}
+```
+
+### Integration with `/score_transaction`
+
+1. Offline features fetched from Parquet
+2. Online features computed
+3. Merged into `full_features`
+4. Passed to all brains
 
 ---
 
-## Эксплейны и LLM-ассистент
+### Advantages
 
-Файл `backend/llm_agent.py` реализует слой объяснений вокруг моделей.
+#### Real-Time Enrichment
 
-1. **SHAP-факторы по каждому мозгу**
+- Online store updates with every new transaction
+- Reactive to new fraud patterns (e.g. bursts)
 
-   * `catboost_reasons_for_row` использует CatBoost TreeSHAP;
-   * `shap_top_for_linear` оценивает вклад признаков в логистических пайплайнах (AE, Sequence, Meta);
-   * `describe_feature` обогащает признак данными из `feature_dictionary.json`:
-     * человеко-читаемый **label**;
-     * группа признака;
-     * короткое описание;
-     * подсказки по высокому и низкому риску.
+#### Stateless API, Stateful Engine
 
-2. **Сбор общих причин по кейсу**
+- Client sends only the current transaction
+- Online state is kept in memory
 
-   * `_build_shap_reasons_for_case` в `main.py`:
-     * поднимает оффлайн-фичи по `docno`;
-     * прогоняет их через Fast, Graph, Session, AE, Sequence и Meta Brain;
-     * собирает до **30** наиболее значимых факторов риска с указанием:
-       * `brain`;
-       * группы признака;
-       * текстовых подсказок.
+#### Simplicity
 
-3. **Формирование промптов и fallback**
-
-   * `explain_case_text` и `generate_sar_text` собирают:
-     * сводку кейса (сумма, направление, скоры всех мозгов, итоговый риск);
-     * описание стратегии и порогов;
-     * список факторов риска, сгруппированных по мозгам.
-   * Используется современный OpenAI-клиент, модель по умолчанию — `gpt-4o-mini` (конфигурируется через переменную окружения).
-   * При отсутствии API-ключа или ошибке:
-     * возвращается информативный **fallback** с сырой сводкой и факторами;
-     * аналитик может вручную написать объяснение или SAR, опираясь на эти данные.
-
-LLM-слой работает как надстройка над числовыми сигналами **и не вмешивается в само решение по кейсу**.
+- Uses `collections.deque`
+- Explicit logic
+- Transparent and extendable
 
 ---
 
-## Консоль аналитика (Streamlit UI)
+Together, the **Offline** and **Online** Feature Stores form the complete feature layer of ForteShield AI:
 
-Фронт-часть реализована в `ui/app.py` на базе **Streamlit** с визуализацией через **Altair**.
+- **Offline** captures long-term signals and model outputs
+- **Online** brings fresh behavioral context
 
-Основные вкладки:
+> The result: stable, fast, and reactive fraud scoring for every transaction.
+
+
+---
+
+## 3. Scoring Brains
+
+ForteShield AI uses a **layered ensemble of specialized models**, called **brains**. Each brain focuses on a specific type of fraud signal, and their outputs are combined into a final score by the **Meta Brain**.
+
+All brains use a shared `full_features` dictionary, which merges:
+- Offline features from `features_offline_v11.parquet`
+- Online features from `OnlineFeatureStore`
+
+Feature schemas for each brain are stored in `config/*.json`.
+
+---
+
+### Fast Gate (`score_fast`)
+
+- **Model**: `CatBoostClassifier`
+- **Features**: `features_schema_v11.json`
+- **Purpose**:
+  - Fast risk estimate for every transaction
+  - Feeds `risk_fast` live and `risk_fast_oof_v11` offline
+
+**How it works**:
+- Handles mixed numeric and categorical features
+- Converts missing/invalid values
+- Produces a high-speed standalone fraud probability
+
+---
+
+### Graph Brain (`score_graph`)
+
+- **Model**: `CatBoostClassifier`
+- **Features**: `graph_brain_features_v11.json`
+- **Focus**: Network & reputation analysis
+
+**Captures**:
+- Graph-based aggregates
+- Fraudulent neighbor connections
+- In/out-degree of nodes
+
+Provides `risk_graph`, an independent signal from transaction structure.
+
+---
+
+### Session Brain (`score_sess`)
+
+- **Model**: `CatBoostClassifier`
+- **Features**: `session_features_v11.json`
+- **Focus**: Session behavior & anomalies
+
+**Analyzes**:
+- Device & channel consistency
+- Frequency and timing
+- Suspicious navigation or robotic behavior
+
+Provides `risk_sess`, useful for detecting account takeover and bot patterns.
+
+---
+
+### AE Brain (`score_ae_meta`)
+
+- **Model**: `Sklearn Pipeline` (Imputer + Scaler + LogisticRegression)
+- **Features**: `autoencoder_meta_features_v11.json`
+- **Focus**: Anomaly-based fraud detection
+
+**Works with**:
+- Autoencoder scores and embeddings
+- Reconstruction errors
+- Behavior deviations
+
+Returns `risk_ae`, a calibrated score from anomaly-based features.
+
+---
+
+### Sequence Brain (`score_seq_meta`)
+
+- **Model**: `Sklearn Pipeline`
+- **Features**: `sequence_meta_features_v11.json`
+- **Focus**: Temporal transaction patterns
+
+**Detects**:
+- Escalation (micro → large)
+- Repetitive cash-out behavior
+- Event sequences with fraud risk
+
+Returns:
+- `risk_seq`
+- `hist_len` (sequence length flag)
+
+---
+
+### Meta Brain (`score_meta_vprod`)
+
+- **Model**: `meta_vprd.pkl` (Sklearn-style)
+- **Features**: `meta_features_vprod.json`
+- **Focus**: Final aggregation layer
+
+**Input**:
+- OOF scores (e.g., `risk_fast_oof_v11`)
+- Live Fast Gate output (`risk_fast`)
+- Additional meta features
+
+**Output**:
+- `risk_meta` → final fraud probability
+
+**Functionality**:
+- Learns when to trust which brain
+- Adjusts weights based on meta context
+- Used in PolicyEngine, case scoring, and explanations
+
+---
+
+### Summary
+
+| Brain          | Focus                  | Type               | Output       |
+|----------------|------------------------|--------------------|--------------|
+| Fast Gate      | Transactional + Profile| CatBoostClassifier | `risk_fast`  |
+| Graph Brain    | Network structure      | CatBoostClassifier | `risk_graph` |
+| Session Brain  | Online behavior        | CatBoostClassifier | `risk_sess`  |
+| AE Brain       | Anomaly detection      | Sklearn Pipeline   | `risk_ae`    |
+| Sequence Brain | Event patterns         | Sklearn Pipeline   | `risk_seq`   |
+| Meta Brain     | Aggregation + Meta     | Sklearn Ensemble   | `risk_meta`  |
+
+> The Meta Brain fuses the insights from all brains into a single, calibrated risk score. This drives fraud decisions, case prioritization, and analyst explanations.
+
+---
+
+## 4. Policy Engine
+
+Defined in `backend/policy_engine.py`:
+
+- Reads config from `config/meta_thresholds_vprod.json`
+- Supports strategies:
+  - Aggressive
+  - Balanced
+  - Friendly
+- Returns:
+  - Final decision: `allow` or `alert`
+  - Risk type: Normal / Suspicious / Whale
+    - Takes into account amount and special multipliers
+
+---
+
+## 5. Case Store
+
+Defined in `backend/case_store.py` using SQLite:
+
+- Stores:
+  - `case_id`, `docno`, `cst_dim_id`, `direction`, `amount`, `transdatetime`
+  - Brain scores (`risk_fast`, `risk_meta`, etc.)
+  - Flags (`ae_high`, `has_seq_history`, etc.)
+  - Strategy used and analyst decision
+  - Labeling fields for retraining
+  - Shadow model scores
+
+- Migrations are handled automatically with `_ensure_column`
+
+---
+
+## 6. Model Registry Backend
+
+Defined in `backend/model_loader.py`, wraps around `config/model_registry.json`:
+
+- For each brain:
+  - `champion`, `challenger`, `previous`
+  - `shadow_enabled` flag
+
+- Main operations:
+  - `load_champion`
+  - `promote(brain)`
+  - `rollback(brain)`
+
+Model paths can be relative or absolute.
+
+---
+
+## 7. REST API
+
+Key **FastAPI** endpoints:
+
+- `GET /health` – System status and model info
+- `POST /score_transaction` – Main scoring:
+  - Input: `TransactionInput` (`docno`, `cst_dim_id`, `amount`, etc.)
+  - Output: `ScoreResponse` with final risk, decision, strategy
+- `GET /cases`, `GET /case/{id}`, `POST /case/{id}/label`
+- `GET /strategy`, `GET /strategies`, `POST /strategy/{name}`
+- LLM endpoints:
+  - `POST /llm/explain_case`
+  - `POST /llm/generate_sar`
+- Model governance API:
+  - `GET /model_registry`
+  - `POST /retrain`
+  - `POST /reload_models`
+  - `POST /promote_model?brain=...`
+  - `POST /rollback_model?brain=...`
+
+---
+
+## 8. Shadow Mode
+
+When `shadow_enabled` is ON:
+- Challenger scores are computed in parallel
+- Written into `risk_fast_shadow`, `risk_meta_shadow`
+- The business logic still uses the champion
+- The UI compares champion vs shadow for each case
+
+---
+
+## Explanations and LLM Assistant
+
+Defined in `backend/llm_agent.py`:
+
+### SHAP Factors per Brain
+- `catboost_reasons_for_row`: CatBoost TreeSHAP
+- `shap_top_for_linear`: Linear model contribution (AE, Sequence, Meta)
+
+### Feature Descriptions
+- Uses `feature_dictionary.json` to explain:
+  - Human label
+  - Feature group
+  - Risk hints
+
+### Case-Level Reasoning
+- `_build_shap_reasons_for_case` (in `main.py`) collects top 30 risk factors
+
+### Prompt Building and Fallback
+- `explain_case_text`, `generate_sar_text` build prompts for LLMs
+- Uses OpenAI client (default `gpt-4o-mini`) via environment variable
+- If no key or error: fallback summary returned for manual SAR writing
+
+> The LLM layer **does not interfere** with decision logic – it works as an **add-on** for analyst context.
+
+
+
+# Analyst Console (Streamlit UI)
+
+The frontend is implemented in `ui/app.py` using **Streamlit** with visualizations powered by **Altair**.
+
+---
+
+## Main Tabs
 
 ### 1. Dashboard
 
-* Подключается к `/cases`, агрегирует данные за последние `N` дней  
-  (окно настраивается через `DASHBOARD_WINDOW_DAYS`).
-* Показывает:
-  * общее число кейсов в окне;
-  * количество алертов и `alert_rate`;
-  * тайм-серии: число кейсов и алертов по дням;
-  * распределение итогового риска с раскладкой по `allow/alert`.
-* Автообновление каждые несколько секунд.
+- Connects to `/cases` and aggregates data over the last `N` days (configured via `DASHBOARD_WINDOW_DAYS`)
+- Displays:
+  - Total number of cases
+  - Alerts and alert rate
+  - Time series of cases and alerts
+  - Final risk distribution (allow vs alert)
+- Supports auto-refresh
 
 ### 2. Cases
 
-* Список кейсов с фильтрами по:
-  * решению;
-  * диапазону риска;
-  * поиску по `docno` / `cst_dim_id` / `label`.
-* Интерактивная таблица с ключевыми полями.
-* Карточка выбранного кейса:
-  * сумма, итоговый Meta Brain, решение, тип риска;
-  * champion vs shadow-скоры Fast Gate и Meta Brain;
-  * полный JSON-вид кейса;
-  * аккуратное отображение `anomaly_score_emb` (даже если сейчас не используется).
-
-Интерфейс разметки:
-
-* выбор `label` (`fraud` / `legit`);
-* флаг `use_for_retrain`;
-* статус кейса (`new`, `in_review`, `closed`);
-* отправка изменений через `/case/{id}/label`.
+- Filterable list of cases:
+  - By decision
+  - By risk range
+  - Search by `docno`, `cst_dim_id`, or `label`
+- Interactive table with key fields
+- Case details view:
+  - Amount, Meta Brain score, decision, risk type
+  - Champion vs shadow scores (Fast Gate and Meta Brain)
+  - JSON and formatted anomaly score
+- Labeling interface:
+  - `fraud` / `legit`
+  - `use_for_retrain` flag
+  - Case status
+  - Sends labels to `/case/{id}/label`
 
 ### 3. LLM Assistant
 
-* Быстрый поиск кейсов по `docno` или `client_id`;
-* Выбор кейса с кратким summary;
-* Две кнопки:
-  * «Объяснить решение (LLM)» → `/llm/explain_case`;
-  * «Сгенерировать черновик SAR» → `/llm/generate_sar`;
-* Результат выводится прямо в UI, при ошибке — понятное сообщение.
+- Fast search by `docno` or `client_id`
+- Case summary view
+- Buttons:
+  - "Explain decision (LLM)" → `/llm/explain_case`
+  - "Generate SAR draft" → `/llm/generate_sar`
 
-### 4. SHAP insights
+### 4. SHAP Insights
 
-* Автоматически ищет parquet-файлы SHAP-сводок в `data/processed/` для каждого мозга;
-* Строит бар-чарты по `mean |SHAP|`, показывая топ-фичи:
-  * Fast Gate;
-  * Graph Brain;
-  * Session Brain;
-  * AE;
-  * Sequence;
-  * Meta Brain.
-* Если файл не найден — показывает ожидаемый путь, чтобы DS-команда могла воспроизвести.
+- Scans `data/processed/` for SHAP summary files
+- Bar charts of top features by mean |SHAP|
+- Supports:
+  - Fast Gate
+  - Graph Brain
+  - Session Brain
+  - AE
+  - Sequence
+  - Meta Brain
 
 ### 5. Model Governance
 
-* Читает `/model_registry` и показывает:
-  * champion и challenger версии Fast Gate и Meta Brain;
-  * сырой JSON registry (по клику);
-* Читает `/retrain_last_report`:
-  * строит табличное сравнение метрик champion vs challenger;
-  * визуализирует результаты графиками;
-* Панель операций:
-  * запуск retrain через `/retrain`;
-  * `promote` Fast Gate и Meta Brain challenger → champion;
-  * `rollback` champion ↔ previous для каждого мозга;
-  * после каждой операции UI:
-    * перезагружает model_registry;
-    * вызывает `/reload_models` в backend.
+- Reads `/model_registry`
+- Displays champion/challenger for each brain
+- Fetches `/retrain_last_report` for metric comparison
+- Visual panel to:
+  - Trigger retraining (`/retrain`)
+  - Promote or rollback models
+  - Reload model registry and backend
 
-Всё это оформлено в визуальном стиле, близком к бренд-цветам ForteBank — консоль выглядит как готовый продукт для демонстрации бизнесу.
-
-
-
-## Сценарии тестирования и симуляции
-
-Каталог `scripts/` содержит вспомогательные утилиты:
-
-* `stream_simulator.py`
-  * читает очищенный `transactions.csv` (из работы участника A);
-  * нормализует типы (`datetime`, `docno`, `amount`, направления);
-  * сортирует по времени;
-  * отправляет транзакции в backend через `/score_transaction`;
-  * поддерживает режимы:
-    * `fast`;
-    * `slow` (с имитацией задержек).
-
-* `red_team.py`
-  * сценарий «micro-fraud + cash-out»:
-    * серия мелких транзакций;
-    * один крупный вывод;
-  * прогоняет цепочку через backend;
-  * печатает для каждой операции:
-    * решение;
-    * риск.
-
-Эти скрипты позволяют воспроизводить потоковые сценарии, наблюдать метрики на Dashboard и анализировать, какие кейсы попадают в очередь.
+> The UI is styled with ForteBank brand colors to align with stakeholder expectations.
 
 ---
 
-## Retrain-pipeline и champion/challenger
+## Testing and Simulation Scenarios
 
-Цепочка перетренировки:
+**scripts/** folder contains utility tools.
 
-1. Аналитики размечают кейсы в UI и отмечают `use_for_retrain`.
+### stream_simulator.py
 
-2. По кнопке «Перетренировать challenger» во вкладке Model Governance вызывается `/retrain`.
+- Reads a cleaned `transactions.csv`
+- Normalizes and sorts data
+- Sends it to `/score_transaction`
+- Modes:
+  - `fast`
+  - `slow` (with delay)
 
-3. Backend:
-   * запускает `retrain_models.py` синхронно;
-   * собирает `stdout`/`stderr`;
-   * после завершения читает последний `retrain_report_*.json` из `reports/`.
+### red_team.py
 
-4. В отчёте:
-   * сравнение champion vs challenger для Fast Gate и Meta Brain:
-     * метрики до/после;
-     * ROC/PR;
-     * срезы по таргету и т.д.
+- Simulates a fraud scenario:
+  - Series of small transfers + large cash-out
+- Displays decision and risk for each step
 
-5. UI:
-   * показывает таблицу и графики сравнений;
-   * позволяет раскрыть сырой JSON отчёта.
-
-6. Если новые модели лучше:
-   * аналитик нажимает:
-     * «Promote Fast Gate challenger → champion» или
-     * «Promote Meta Brain challenger → champion»;
-   * backend:
-     * обновляет `model_registry.json` через `ModelRegistryBackend.promote`;
-     * перезагружает модели.
-
-7. При необходимости всегда доступен `Rollback` для каждого мозга.
-
-Так в демо реализована культура **model governance**, к которой привыкли банки.
+These help test real-time flow and dashboard response.
 
 ---
 
-## Ключевые достоинства ForteShield AI
+## Retrain Pipeline & Champion/Challenger
 
-1. **Многоуровневый ансамбль моделей**  
-   Несколько специализирующихся «мозгов»:
-   * транзакции;
-   * граф связей;
-   * история клиента;
-   * поведение в сессии;
-   * аномалии  
-     → плюс финальный Meta Brain дают более надёжный сигнал, чем одна монолитная модель.
+### Workflow
 
-2. **Чистая граница между оффлайном и онлайном**
-   * оффлайн-фичестор, OOF-скоры, SHAP-сводки, конфиги фич — в ноутбуках;
-   * онлайн-сервис опирается на стабильные артефакты;
-   * в коде backend нет «зашитых» фичей — всё берётся из артефактов и конфигов.
+1. Analysts label cases and set `use_for_retrain`
+2. Click "Retrain challenger"
+3. UI calls `/retrain`, backend:
+   - Runs `retrain_models.py`
+   - Captures logs
+   - Loads latest `retrain_report_*.json`
+4. UI:
+   - Shows metrics, ROC/PR charts, slices
+   - Enables promotion if challenger is better
 
-3. **Прозрачность для аналитиков и комплаенса**
-   * каждое решение сопровождается:
-     * скорингами всех мозгов;
-     * типом риска;
-     * SHAP-факторами;
-   * LLM-ассистент:
-     * объясняет решения человеческим языком;
-     * формирует черновики SAR-отчётов на русском, опираясь на реальные числа под капотом.
+### Model Management Actions
 
-4. **Готовность к эксплуатации и развитию**
-   * champion/challenger;
-   * shadow-режим;
-   * retrain-pipeline;
-   * `model_registry`;
-   * `promote` и `rollback`;
-   * разметка кейсов и отбор для retrain — всё выстроено в единый процесс.
+- Promote Fast Gate or Meta Brain
+- Rollback to previous version
+- All actions update model registry and reload backend
 
-5. **Полный end-to-end сторилайн**
-   Репозиторий показывает путь:
-   * от сырого датасета и исследовательских ноутбуков;
-   * до работающего backend-сервиса;
-   * и понятной консоли для антифрод-команды.
-
-   Любой член жюри или заказчик может:
-   * поднять backend;
-   * открыть UI;
-   * прогнать поток транзакций;
-   * увидеть дашборд;
-   * открыть кейсы;
-   * посмотреть объяснения;
-   * промоутить новую версию модели.
+This supports full **model governance** workflows.
 
 ---
 
-## Как запустить локально (пример)
+## Key Strengths of ForteShield AI
 
-> Команды могут отличаться в зависимости от вашего окружения. Ниже — примерный сценарий.
+### Multi-layer Model Ensemble
 
-1. **Установить зависимости**
+- Specialized brains:
+  - Transactions
+  - Graph
+  - History
+  - Session
+  - Anomalies
+- Combined in a final Meta Brain
 
+### Clean Offline/Online Separation
+
+- Offline: Notebooks, features, configs
+- Online: Uses only stable artifacts
+
+### Analyst and Compliance Transparency
+
+- Every decision has:
+  - Model scores
+  - Risk type
+  - SHAP insights
+- LLM assistant:
+  - Explains in human terms
+  - Generates SAR drafts (in Russian)
+
+### Operational Readiness
+
+- Shadow mode
+- Champion/challenger logic
+- Retraining pipeline
+- Promotion and rollback
+- Built-in labeling
+
+### Full End-to-End Storyline
+
+- From raw data to production-ready platform
+- Analysts can:
+  - Stream data
+  - Label cases
+  - Read explanations
+  - Manage models
+  - Monitor fraud trends
+
+---
+
+## How to Run Locally (Example)
+
+### Install dependencies
 ```bash
 pip install -r requirements.txt
 ```
 
-2. **Подготовить данные**
-* положить подготовленные parquet-файлы в `data/processed/`  
-  (например, `features_offline_v11.parquet` и SHAP-сводки).
+### Prepare data
+Put processed parquet files into `data/processed/`  
+(e.g. `features_offline_v11.parquet`, SHAP summaries)
 
-3. **Настройка LLM и запуск backend (FastAPI)**
-
+### Configure and run backend
 ```bash
-$env:OPENAI_API_KEY="<Ключ API>"
-$env:OPENAI_SAR_MODEL="gpt-4.1-mini"
-$env:OPENAI_EXPLAIN_MODEL="gpt-4.1-mini"
+export OPENAI_API_KEY="<API key>"
+export OPENAI_SAR_MODEL="gpt-4.1-mini"
+export OPENAI_EXPLAIN_MODEL="gpt-4.1-mini"
 
 uvicorn backend.main:app --reload
 ```
 
-4. **Запустить UI (Streamlit)**
-
+### Run UI
 ```bash
 streamlit run ui/app.py
-# откроется в браузере: http://localhost:8501
+# open http://localhost:8501
 ```
 
-5. **(Опционально) Запустить симулятор потока**
-
+### (Optional) Run stream simulator
 ```bash
 python scripts/stream_simulator.py
 ```
 
-## Итог
+---
 
-ForteShield AI демонстрирует не только качество моделей, но и зрелость всей архитектуры антифрод-решения для ForteBank.
+## Summary
 
-В рамках одного проекта реализованы:
+**ForteShield AI** showcases model quality and architectural maturity for anti-fraud at ForteBank:
 
-* ансамбль специализированных моделей, включая Session Brain на поведенческих данных;
-* финальный Meta Brain, собирающий их в единый риск-скор;
-* online-фичи по velocity и репутации контрагентов;
-* стабильный feature store и прозрачный оффлайн-pipeline;
-* backend-сервис на FastAPI с понятным API;
-* консоль аналитика с очередью кейсов, фильтрами, дашбордом и LLM-ассистентом;
-* культура model governance с retrain, champion/challenger, shadow-режимом, promote и rollback.
+- Multi-model ensemble including Session Brain
+- Meta Brain for risk aggregation
+- Real-time velocity and reputation features
+- Transparent APIs and governance process
+- Intuitive UI for analysts and regulators
+- End-to-end tooling for demos and real scenarios
